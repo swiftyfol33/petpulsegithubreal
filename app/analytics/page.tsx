@@ -12,7 +12,7 @@ import { ActivitySummary } from "@/components/analytics/activity-summary"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/contexts/AuthContext"
 import { useSelectedPet } from "@/contexts/PetContext"
-import { db } from "@/firebase"
+import { getClientDb } from "@/lib/client-firebase"
 import { collection, query, where, getDocs, orderBy, limit } from "firebase/firestore"
 import { Spinner } from "@/components/ui/spinner"
 import { PageHeader } from "@/components/page-header"
@@ -48,6 +48,12 @@ export default function AnalyticsPage() {
     }
     setLoading(true)
     try {
+      // Get client-side only Firestore instance
+      const db = getClientDb()
+      if (!db) {
+        throw new Error("Failed to initialize Firebase")
+      }
+      
       // Fetch health records
       const healthQuery = query(
         collection(db, "healthRecords"),
