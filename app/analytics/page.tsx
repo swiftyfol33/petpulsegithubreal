@@ -1,5 +1,8 @@
 "use client"
 
+// Prevent prerendering of this page which requires client-side Firebase
+export const dynamic = 'force-dynamic'
+
 import { useState, useEffect, useCallback } from "react"
 import { PetHeader } from "@/components/pet-header"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
