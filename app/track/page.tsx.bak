@@ -1,0 +1,613 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { useAuth } from "../../contexts/AuthContext"
+import { useSelectedPet } from "../../contexts/PetContext"
+import { db } from "../../lib/firebase"
+import { collection, addDoc, getDocs, query, where, orderBy } from "firebase/firestore"
+import { useRouter } from "next/navigation"
+import Navigation from "../../components/navigation"
+import { PageHeader } from "../../components/page-header"
+import { PetHeader } from "../../components/pet-header"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Slider } from "@/components/ui/slider"
+import { Button } from "@/components/ui/button"
+import { Stars, Weight, Activity, Utensils, Moon, Smile, PenTool, Syringe, Pill } from "lucide-react"
+import { isBefore } from "date-fns"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
+
+interface Vaccination {
+  id: string
+  name: string
+  dueDate: string
+  repeat: boolean
+  repeatInterval?: number // in days
+}
+
+interface Medication {
+  id: string
+  name: string
+  dueDate: string
+  frequency: string
+  repeat: boolean
+  repeatInterval?: number // in days
+}
+
+interface HealthRecord {
+  id: string
+  date: string
+  weight: number
+  activityLevel: number
+  foodIntake: string
+  sleepDuration: number
+  behavior: string
+  notes: string
+}
+
+export default function TrackHealth() {
+  const { user } = useAuth()
+  const { selectedPet } = useSelectedPet()
+  const router = useRouter()
+  const [weight, setWeight] = useState("")
+  const [activityLevel, setActivityLevel] = useState<number[] | null>(null)
+  const [foodIntake, setFoodIntake] = useState("")
+  const [sleepDuration, setSleepDuration] = useState("")
+  const [behavior, setBehavior] = useState("")
+  const [notes, setNotes] = useState("")
+  const [error, setError] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [vaccinations, setVaccinations] = useState<Vaccination[]>([])
+  const [medications, setMedications] = useState<Medication[]>([])
+  const [healthRecords, setHealthRecords] = useState<HealthRecord[]>([])
+
+  // New state variables for vaccination and medication inputs
+  const [vaccinationName, setVaccinationName] = useState("")
+  const [vaccinationDate, setVaccinationDate] = useState("")
+  const [medicationName, setMedicationName] = useState("")
+  const [medicationDate, setMedicationDate] = useState("")
+  const [medicationFrequency, setMedicationFrequency] = useState("")
+  const [vaccinationRepeat, setVaccinationRepeat] = useState(false)
+  const [vaccinationRepeatInterval, setVaccinationRepeatInterval] = useState("")
+  const [medicationRepeat, setMedicationRepeat] = useState(false)
+  const [medicationRepeatInterval, setMedicationRepeatInterval] = useState("")
+
+  useEffect(() => {
+    if (user && selectedPet) {
+      fetchVaccinations()
+      fetchMedications()
+      fetchHealthRecords()
+    }
+  }, [user, selectedPet])
+
+  const fetchVaccinations = async () => {
+    if (!user || !selectedPet) return
+    const q = query(
+      collection(db, "vaccinations"),
+      where("userId", "==", user.uid),
+      where("petId", "==", selectedPet.id),
+      orderBy("dueDate"),
+    )
+    const querySnapshot = await getDocs(q)
+    const fetchedVaccinations: Vaccination[] = []
+    querySnapshot.forEach((doc) => {
+      fetchedVaccinations.push({ id: doc.id, ...doc.data() } as Vaccination)
+    })
+    setVaccinations(fetchedVaccinations)
+  }
+
+  const fetchMedications = async () => {
+    if (!user || !selectedPet) return
+    const q = query(
+      collection(db, "medications"),
+      where("userId", "==", user.uid),
+      where("petId", "==", selectedPet.id),
+      orderBy("dueDate"),
+    )
+    const querySnapshot = await getDocs(q)
+    const fetchedMedications: Medication[] = []
+    querySnapshot.forEach((doc) => {
+      fetchedMedications.push({ id: doc.id, ...doc.data() } as Medication)
+    })
+    setMedications(fetchedMedications)
+  }
+
+  const fetchHealthRecords = async () => {
+    if (!user || !selectedPet) return
+    const q = query(
+      collection(db, "healthRecords"),
+      where("userId", "==", user.uid),
+      where("petId", "==", selectedPet.id),
+      orderBy("date", "desc"),
+    )
+    const querySnapshot = await getDocs(q)
+    const fetchedRecords: HealthRecord[] = []
+    querySnapshot.forEach((doc) => {
+      fetchedRecords.push({ id: doc.id, ...doc.data() } as HealthRecord)
+    })
+    setHealthRecords(fetchedRecords)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!user || !selectedPet) {
+      setError("You must be logged in and have a pet selected to track health")
+      return
+    }
+
+    setIsSubmitting(true)
+    setError("")
+
+    try {
+      const healthRecord: any = {
+        userId: user.uid,
+        petId: selectedPet.id,
+        date: new Date().toISOString(),
+      }
+
+      if (weight) {
+        const weightValue = Number.parseFloat(weight)
+        if (isNaN(weightValue) || weightValue <= 0) {
+          throw new Error("Please enter a valid weight")
+        }
+        healthRecord.weight = weightValue
+      }
+
+      if (activityLevel !== null && activityLevel[0] !== 5) {
+        healthRecord.activityLevel = activityLevel[0]
+      }
+
+      if (foodIntake) {
+        healthRecord.foodIntake = foodIntake
+      }
+
+      if (sleepDuration) {
+        healthRecord.sleepDuration = Number(sleepDuration)
+      }
+
+      if (behavior) {
+        healthRecord.behavior = behavior
+      }
+
+      if (notes) {
+        healthRecord.notes = notes
+      }
+
+      await addDoc(collection(db, "healthRecords"), healthRecord)
+      await fetchHealthRecords() // Refresh the health records after adding a new one
+      router.push("/")
+    } catch (error) {
+      console.error("Error adding health record:", error)
+      if (error instanceof Error) {
+        setError(error.message)
+      } else {
+        setError("Failed to add health record. Please try again.")
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleAddVaccination = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!user || !selectedPet) {
+      setError("You must be logged in and have a pet selected to add a vaccination")
+      return
+    }
+
+    try {
+      const vaccination = {
+        userId: user.uid,
+        petId: selectedPet.id,
+        name: vaccinationName,
+        dueDate: new Date(vaccinationDate).toISOString(),
+        repeat: vaccinationRepeat,
+        repeatInterval: vaccinationRepeat ? Number.parseInt(vaccinationRepeatInterval) : undefined,
+      }
+      await addDoc(collection(db, "vaccinations"), vaccination)
+      setVaccinationName("")
+      setVaccinationDate("")
+      setVaccinationRepeat(false)
+      setVaccinationRepeatInterval("")
+      fetchVaccinations()
+    } catch (error) {
+      console.error("Error adding vaccination:", error)
+      setError("Failed to add vaccination. Please try again.")
+    }
+  }
+
+  const handleAddMedication = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!user || !selectedPet) {
+      setError("You must be logged in and have a pet selected to add a medication")
+      return
+    }
+
+    try {
+      const medication = {
+        userId: user.uid,
+        petId: selectedPet.id,
+        name: medicationName,
+        dueDate: new Date(medicationDate).toISOString(),
+        frequency: medicationFrequency,
+        repeat: medicationRepeat,
+        repeatInterval: medicationRepeat ? Number.parseInt(medicationRepeatInterval) : undefined,
+      }
+      await addDoc(collection(db, "medications"), medication)
+      setMedicationName("")
+      setMedicationDate("")
+      setMedicationFrequency("")
+      setMedicationRepeat(false)
+      setMedicationRepeatInterval("")
+      fetchMedications()
+    } catch (error) {
+      console.error("Error adding medication:", error)
+      setError("Failed to add medication. Please try again.")
+    }
+  }
+
+  const getDueStatus = (item: Vaccination | Medication) => {
+    const dueDate = new Date(item.dueDate)
+    const today = new Date()
+    const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 3600 * 24))
+
+    if (isNaN(dueDate.getTime())) {
+      return <span className="text-gray-500">Invalid date</span>
+    }
+
+    const formattedDate = dueDate.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+
+    if (isBefore(dueDate, today)) {
+      if (item.repeat && item.repeatInterval) {
+        const nextDueDate = new Date(dueDate.getTime() + item.repeatInterval * 24 * 60 * 60 * 1000)
+        const nextFormattedDate = nextDueDate.toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        })
+        return <span className="text-orange-500 font-semibold">Next due: {nextFormattedDate}</span>
+      }
+      return <span className="text-red-500 font-semibold">Overdue (Due: {formattedDate})</span>
+    } else if (daysUntilDue <= 7) {
+      return (
+        <span className="text-orange-500 font-semibold">
+          Due in {daysUntilDue} day{daysUntilDue !== 1 ? "s" : ""} (Due: {formattedDate})
+        </span>
+      )
+    } else {
+      return (
+        <span className="text-green-500">
+          Due in {daysUntilDue} days (Due: {formattedDate})
+        </span>
+      )
+    }
+  }
+
+  return (
+    <div className="flex flex-col min-h-screen bg-[#FAF9F6]">
+      <PageHeader title="Track Health" />
+      <PetHeader />
+      <main className="flex-grow flex flex-col items-center p-6">
+        <div className="w-full max-w-4xl">
+          {/* New section for interactive charts */}
+          <div className="bg-black text-white p-6 rounded-lg mb-8">
+            <h2 className="text-2xl font-semibold mb-6">Health Metrics Overview</h2>
+            <div className="space-y-8">
+              {/* Weight Chart */}
+              <div>
+                <h3 className="text-xl font-semibold mb-4">Weight Progression</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={healthRecords.slice().reverse()}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" tickFormatter={(date) => new Date(date).toLocaleDateString()} />
+                    <YAxis />
+                    <Tooltip
+                      labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                      formatter={(value) => [`${value} kg`, "Weight"]}
+                    />
+                    <Legend />
+                    <Line type="monotone" dataKey="weight" stroke="#8884d8" activeDot={{ r: 8 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Activity Level Chart */}
+              <div>
+                <h3 className="text-xl font-semibold mb-4">Activity Level Trends</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={healthRecords.slice().reverse()}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" tickFormatter={(date) => new Date(date).toLocaleDateString()} />
+                    <YAxis domain={[0, 10]} />
+                    <Tooltip
+                      labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                      formatter={(value) => [`${value}/10`, "Activity Level"]}
+                    />
+                    <Legend />
+                    <Line type="monotone" dataKey="activityLevel" stroke="#82ca9d" activeDot={{ r: 8 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Sleep Duration Chart */}
+              <div>
+                <h3 className="text-xl font-semibold mb-4">Sleep Duration Patterns</h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={healthRecords.slice().reverse()}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" tickFormatter={(date) => new Date(date).toLocaleDateString()} />
+                    <YAxis />
+                    <Tooltip
+                      labelFormatter={(date) => new Date(date).toLocaleDateString()}
+                      formatter={(value) => [`${value} hours`, "Sleep Duration"]}
+                    />
+                    <Legend />
+                    <Line type="monotone" dataKey="sleepDuration" stroke="#ffc658" activeDot={{ r: 8 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6 space-y-6 mt-4">
+            <h2 className="text-2xl font-semibold mb-6 text-[#2D57ED]">Track Health</h2>
+            {error && <p className="text-red-500 bg-red-50 rounded-lg p-3">{error}</p>}
+
+            <div className="flex space-x-4">
+              <div className="flex-1 bg-[#EEF1FF] rounded-lg p-4 flex flex-col min-h-[120px]">
+                <label htmlFor="weight" className="block text-sm font-medium text-blue-800 mb-1 flex items-center">
+                  <Weight className="w-5 h-5 mr-2" />
+                  Weight (kg)
+                </label>
+                <Input
+                  type="number"
+                  id="weight"
+                  value={weight}
+                  onChange={(e) => setWeight(e.target.value)}
+                  required
+                  step="0.1"
+                  min="0"
+                  className="w-full bg-white mt-auto"
+                />
+              </div>
+
+              <div className="flex-1 bg-[#F8ECFF] rounded-lg p-4 flex flex-col min-h-[120px]">
+                <label
+                  htmlFor="sleepDuration"
+                  className="block text-sm font-medium text-purple-800 mb-1 flex items-center"
+                >
+                  <Moon className="w-5 h-5 mr-2" />
+                  Sleep (hours)
+                </label>
+                <Input
+                  type="number"
+                  id="sleepDuration"
+                  value={sleepDuration}
+                  onChange={(e) => setSleepDuration(e.target.value)}
+                  min="0"
+                  max="24"
+                  step="0.5"
+                  className="w-full bg-white mt-auto"
+                />
+              </div>
+            </div>
+
+            <div className="bg-green-100 rounded-lg p-4">
+              <label
+                htmlFor="activityLevel"
+                className="block text-sm font-medium text-green-800 mb-1 flex items-center"
+              >
+                <Activity className="w-5 h-5 mr-2" />
+                Activity Level (1-10)
+              </label>
+              <Slider
+                id="activityLevel"
+                min={1}
+                max={10}
+                step={1}
+                value={activityLevel || [5]}
+                onValueChange={setActivityLevel}
+                className="w-full"
+              />
+              <span className="text-sm text-green-700 mt-1">
+                {activityLevel === null ? "Move to set level" : `Current: ${activityLevel[0]}`}
+              </span>
+            </div>
+
+            <div className="bg-yellow-100 rounded-lg p-4">
+              <label htmlFor="foodIntake" className="block text-sm font-medium text-yellow-800 mb-1 flex items-center">
+                <Utensils className="w-5 h-5 mr-2" />
+                Food Intake
+              </label>
+              <Select value={foodIntake} onValueChange={setFoodIntake}>
+                <SelectTrigger id="foodIntake" className="w-full bg-white">
+                  <SelectValue placeholder="Select food intake" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="less">Less than usual</SelectItem>
+                  <SelectItem value="normal">Normal</SelectItem>
+                  <SelectItem value="more">More than usual</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="bg-pink-100 rounded-lg p-4">
+              <label htmlFor="behavior" className="block text-sm font-medium text-pink-800 mb-1 flex items-center">
+                <Smile className="w-5 h-5 mr-2" />
+                Behavior
+              </label>
+              <Select value={behavior} onValueChange={setBehavior}>
+                <SelectTrigger id="behavior" className="w-full bg-white">
+                  <SelectValue placeholder="Select behavior" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="normal">Normal</SelectItem>
+                  <SelectItem value="lethargic">Lethargic</SelectItem>
+                  <SelectItem value="hyperactive">Hyperactive</SelectItem>
+                  <SelectItem value="anxious">Anxious</SelectItem>
+                  <SelectItem value="aggressive">Aggressive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="bg-gray-100 rounded-lg p-4">
+              <label htmlFor="notes" className="block text-sm font-medium text-gray-800 mb-1 flex items-center">
+                <PenTool className="w-5 h-5 mr-2" />
+                Notes
+              </label>
+              <Textarea
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={4}
+                className="w-full bg-white"
+              />
+              <div className="mt-2 bg-[#431170] text-white p-4 rounded-lg flex items-center justify-center shadow-[inset_0px_-13px_30px_0px_rgba(133,75,211,1)]">
+                <Stars className="w-6 h-6 mr-2" />
+                <p className="text-sm font-medium">
+                  Adding notes will help AI to analyze your pet's state with more accuracy!
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className={`w-full px-4 py-2 text-white rounded-lg transition-colors ${
+                isSubmitting ? "bg-gray-400" : "bg-[#2D57ED] hover:bg-opacity-90"
+              }`}
+            >
+              {isSubmitting ? "Saving..." : "Save Health Record"}
+            </button>
+          </form>
+
+          <div className="mt-8 bg-white rounded-lg shadow-md p-6 space-y-6">
+            <h2 className="text-2xl font-semibold mb-6 text-[#2D57ED]">Vaccination & Medication Tracking</h2>
+
+            <div className="space-y-4">
+              <h3 className="text-xl font-semibold flex items-center">
+                <Syringe className="w-6 h-6 mr-2 text-blue-500" />
+                Vaccinations
+              </h3>
+              {vaccinations.length > 0 ? (
+                <ul className="space-y-2">
+                  {vaccinations.map((vaccination) => (
+                    <li key={vaccination.id} className="flex justify-between items-center">
+                      <span>{vaccination.name}</span>
+                      <div className="text-right">
+                        <div>{getDueStatus(vaccination)}</div>
+                        {vaccination.repeat && (
+                          <div className="text-sm text-gray-500">Repeats every {vaccination.repeatInterval} days</div>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>No vaccinations scheduled.</p>
+              )}
+              <form onSubmit={handleAddVaccination} className="space-y-2">
+                <Input
+                  type="text"
+                  placeholder="Vaccination Name"
+                  value={vaccinationName}
+                  onChange={(e) => setVaccinationName(e.target.value)}
+                  required
+                />
+                <Input
+                  type="date"
+                  value={vaccinationDate}
+                  onChange={(e) => setVaccinationDate(e.target.value)}
+                  required
+                />
+                <div className="flex items-center space-x-2">
+                  <Switch id="vaccination-repeat" checked={vaccinationRepeat} onCheckedChange={setVaccinationRepeat} />
+                  <Label htmlFor="vaccination-repeat">Repeat</Label>
+                </div>
+                {vaccinationRepeat && (
+                  <Input
+                    type="number"
+                    placeholder="Repeat every X days"
+                    value={vaccinationRepeatInterval}
+                    onChange={(e) => setVaccinationRepeatInterval(e.target.value)}
+                    required
+                  />
+                )}
+                <Button type="submit" className="w-full">
+                  Add Vaccination
+                </Button>
+              </form>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-xl font-semibold flex items-center">
+                <Pill className="w-6 h-6 mr-2 text-green-500" />
+                Medications
+              </h3>
+              {medications.length > 0 ? (
+                <ul className="space-y-2">
+                  {medications.map((medication) => (
+                    <li key={medication.id} className="flex justify-between items-center">
+                      <span>{medication.name}</span>
+                      <div className="text-right">
+                        <div>{getDueStatus(medication)}</div>
+                        <div className="text-sm text-gray-500">{medication.frequency}</div>
+                        {medication.repeat && (
+                          <div className="text-sm text-gray-500">Repeats every {medication.repeatInterval} days</div>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>No medications scheduled.</p>
+              )}
+              <form onSubmit={handleAddMedication} className="space-y-2">
+                <Input
+                  type="text"
+                  placeholder="Medication Name"
+                  value={medicationName}
+                  onChange={(e) => setMedicationName(e.target.value)}
+                  required
+                />
+                <Input
+                  type="date"
+                  value={medicationDate}
+                  onChange={(e) => setMedicationDate(e.target.value)}
+                  required
+                />
+                <Input
+                  type="text"
+                  placeholder="Frequency (e.g., Once daily)"
+                  value={medicationFrequency}
+                  onChange={(e) => setMedicationFrequency(e.target.value)}
+                  required
+                />
+                <div className="flex items-center space-x-2">
+                  <Switch id="medication-repeat" checked={medicationRepeat} onCheckedChange={setMedicationRepeat} />
+                  <Label htmlFor="medication-repeat">Repeat</Label>
+                </div>
+                {medicationRepeat && (
+                  <Input
+                    type="number"
+                    placeholder="Repeat every X days"
+                    value={medicationRepeatInterval}
+                    onChange={(e) => setMedicationRepeatInterval(e.target.value)}
+                    required
+                  />
+                )}
+                <Button type="submit" className="w-full">
+                  Add Medication
+                </Button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </main>
+      <Navigation />
+    </div>
+  )
+}

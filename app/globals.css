@@ -1,0 +1,182 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Chart Animations */
+.recharts-line-curve {
+  transition: all 0.3s ease-in-out;
+}
+
+.recharts-dot {
+  transition: all 0.2s ease-in-out;
+}
+
+.recharts-dot:hover {
+  transform: scale(1.2);
+}
+
+/* Calendar Styles */
+.rbc-calendar {
+  background-color: white;
+  border-radius: 0.5rem;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+}
+
+.rbc-toolbar {
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-top-left-radius: 0.5rem;
+  border-top-right-radius: 0.5rem;
+}
+
+.rbc-toolbar button {
+  color: #374151;
+  background-color: white;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  transition: all 0.2s ease-in-out;
+}
+
+.rbc-toolbar button:hover {
+  background-color: #f3f4f6;
+  transform: translateY(-1px);
+}
+
+.rbc-toolbar button.rbc-active {
+  background-color: #2d57ed;
+  color: white;
+  border-color: #2d57ed;
+}
+
+.rbc-month-view {
+  border: 1px solid #e5e7eb;
+}
+
+.rbc-day-bg {
+  background-color: white;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.rbc-day-bg:hover {
+  background-color: #f8f9fa;
+}
+
+.rbc-off-range-bg {
+  background-color: #f9fafb;
+}
+
+.rbc-today {
+  background-color: #ebf5ff !important;
+}
+
+.rbc-event {
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-size: 0.875rem;
+  border: none;
+  transition: transform 0.2s ease-in-out;
+}
+
+.rbc-event:hover {
+  transform: translateY(-1px);
+}
+
+@media (max-width: 640px) {
+  .rbc-toolbar {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .rbc-toolbar-label {
+    margin: 0.5rem 0;
+    font-size: 1.125rem;
+  }
+
+  .rbc-btn-group {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+
+  .rbc-btn-group button {
+    flex: 1;
+  }
+
+  .rbc-calendar {
+    font-size: 0.875rem;
+  }
+
+  .rbc-event {
+    padding: 1px 3px;
+    font-size: 0.75rem;
+  }
+}
+
+/* Pull to refresh animation */
+@keyframes pullToRefresh {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(10px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.pull-to-refresh {
+  animation: pullToRefresh 1.5s ease-in-out infinite;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* Gradient animations */
+@keyframes gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient 15s ease infinite;
+}
+
+@layer base {
+  input:focus {
+    border-color: rgb(255 255 255 / 1) !important;
+  }
+}
+
+details.absolute.bg-yellow-200 {
+  display: none;
+}
+summary.absolute.bg-yellow-200 {
+  display: none;
+}
+
+@media screen and (max-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

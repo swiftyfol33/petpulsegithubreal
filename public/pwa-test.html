@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PetPulse PWA Test</title>
+  <meta name="theme-color" content="#2D57ED" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="PetPulse" />
+  <link rel="apple-touch-icon" href="/icon-192x192.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    h1 {
+      color: #2D57ED;
+    }
+    button {
+      background-color: #2D57ED;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+    .debug {
+      margin-top: 30px;
+      padding: 15px;
+      background-color: #f5f5f5;
+      border-radius: 8px;
+      font-size: 14px;
+      white-space: pre-wrap;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>PetPulse PWA Test Page</h1>
+  <p>This is a simple test page to verify that the PWA installation is working correctly.</p>
+  
+  <div id="installStatus">Checking installation status...</div>
+  
+  <button id="installButton" style="display:none;">Install App</button>
+  
+  <div class="debug" id="debugInfo"></div>
+  
+  <script>
+    let deferredPrompt;
+    const installButton = document.getElementById('installButton');
+    const installStatus = document.getElementById('installStatus');
+    const debugInfo = document.getElementById('debugInfo');
+    
+    // Debug information
+    let debug = {
+      userAgent: navigator.userAgent,
+      standalone: window.matchMedia('(display-mode: standalone)').matches,
+      https: window.location.protocol === 'https:',
+      manifestLink: !!document.querySelector('link[rel="manifest"]'),
+      serviceWorker: 'serviceWorker' in navigator ? 'supported' : 'not supported',
+      events: []
+    };
+    
+    // Update debug info
+    function updateDebug() {
+      debugInfo.textContent = JSON.stringify(debug, null, 2);
+    }
+    
+    // Log events with timestamps
+    function logEvent(event) {
+      debug.events.push({
+        time: new Date().toISOString(),
+        event: event
+      });
+      updateDebug();
+    }
+    
+    // Initial debug update
+    updateDebug();
+    
+    // Check if already installed
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      installStatus.textContent = 'App is already installed!';
+      logEvent('Already in standalone mode');
+    } else {
+      logEvent('Not in standalone mode');
+    }
+    
+    // Register service worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then(registration => {
+          logEvent('Service worker registered: ' + registration.scope);
+        })
+        .catch(error => {
+          logEvent('Service worker registration failed: ' + error);
+        });
+    }
+    
+    // Listen for beforeinstallprompt event
+    window.addEventListener('beforeinstallprompt', (e) => {
+      logEvent('beforeinstallprompt event fired');
+      // Prevent Chrome 67 and earlier from automatically showing the prompt
+      e.preventDefault();
+      // Stash the event so it can be triggered later
+      deferredPrompt = e;
+      // Update UI to notify the user they can add to home screen
+      installButton.style.display = 'block';
+      installStatus.textContent = 'App can be installed! Click the button below.';
+    });
+    
+    // Installation button click handler
+    installButton.addEventListener('click', async () => {
+      logEvent('Install button clicked');
+      if (!deferredPrompt) {
+        logEvent('No installation prompt available');
+        return;
+      }
+      // Show the prompt
+      deferredPrompt.prompt();
+      // Wait for the user to respond to the prompt
+      const { outcome } = await deferredPrompt.userChoice;
+      logEvent('User installation choice: ' + outcome);
+      // We've used the prompt, and can't use it again, throw it away
+      deferredPrompt = null;
+      
+      if (outcome === 'accepted') {
+        installStatus.textContent = 'Installation accepted!';
+        installButton.style.display = 'none';
+      } else {
+        installStatus.textContent = 'Installation declined. You can try again later.';
+      }
+    });
+    
+    // Listen for the appinstalled event
+    window.addEventListener('appinstalled', (e) => {
+      logEvent('App was installed');
+      installStatus.textContent = 'App was successfully installed!';
+      installButton.style.display = 'none';
+    });
+  </script>
+</body>
+</html>
